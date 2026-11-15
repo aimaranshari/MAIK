@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard Karhutla Indonesia</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet.js (peta) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="style.css?v=42"/>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: { accent: '#3b82d4', surface: '#f7f8fa' } } }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-100 transition-colors duration-300 min-h-screen">
+
+<!-- ══════════════════════ NAVBAR ═══════════════════════════════════════════ -->
+<nav class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+  <div class="max-w-screen-2xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
+    <div class="flex items-end gap-3 mr-auto">
+      <span class="text-3xl sm:text-4xl font-black leading-none tracking-[0.12em] text-gray-900 dark:text-white">
+        MAIK
+      </span>
+      <span class="hidden sm:block pb-0.5 text-[11px] font-medium uppercase leading-tight tracking-widest text-gray-500 dark:text-gray-400 border-l border-gray-300 dark:border-gray-600 pl-3">
+        Monitoring Air <span class="text-emerald-600 dark:text-emerald-400">&amp;</span> Knowledge
+      </span>
+    </div>
+
+    <!-- Filter: Wilayah — custom checkbox dropdown -->
+    <div class="flex items-center gap-1 text-sm relative" id="wilayah-filter-wrap">
+      <label class="text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Wilayah:</label>
+      <button id="wilayah-dropdown-btn" class="wilayah-dropdown-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+        <span id="wilayah-dropdown-label">Semua Wilayah</span>
+        <span class="wilayah-dropdown-arrow">▾</span>
+      </button>
+      <div id="wilayah-dropdown-panel" class="wilayah-dropdown-panel hidden" role="listbox" aria-multiselectable="true">
+        <div class="wilayah-panel-actions">
+          <button id="wilayah-select-all" class="wilayah-action-btn" type="button">Pilih Semua</button>
+          <button id="wilayah-clear-all"  class="wilayah-action-btn" type="button">Hapus Semua</button>
+        </div>
+        <div id="wilayah-checkbox-list" class="wilayah-checkbox-list">
+          <!-- diisi JS via initFilters() -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter: Interval Waktu -->
+    <div class="flex items-center gap-1 text-sm flex-wrap">
+      <label class="text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Waktu:</label>
+      <input type="date" id="filter-date-start" class="filter-date-input" title="Tanggal mulai"/>
+      <span class="text-gray-400 text-xs">–</span>
+      <input type="date" id="filter-date-end" class="filter-date-input" title="Tanggal akhir"/>
+    </div>
+
+    <button id="theme-toggle" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Ubah tema">
+      <span id="theme-icon">🌙</span>
+    </button>
+    <span id="data-date-info" class="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap"></span>
+  </div>
+</nav>
+
+<!-- ══════════════════════ MAIN ══════════════════════════════════════════════ -->
+<main class="max-w-screen-2xl mx-auto px-4 py-5 space-y-6">
+
+  <!-- ── A1: AQI PANEL ──────────────────────────────────────────────────── -->
+  <!-- Konten ini di-replace saat runtime oleh getMainTemplate() di script.js -->
+  <section id="sec-aqi" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-1 card aqi-main-card flex flex-col">
+      <div class="mb-1">
+        <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Air Quality Index</div>
+        <div id="aqi-date-label" class="text-xs text-gray-400 mt-0.5"></div>
+      </div>
+      <div class="flex items-end gap-3 my-2">
+        <div id="aqi-value-big" class="aqi-big-num">--</div>
+        <div>
+          <div id="aqi-cat-badge" class="aqi-badge text-sm font-bold px-3 py-1 rounded-full">--</div>
+          <div id="aqi-main-pol" class="text-xs text-gray-500 dark:text-gray-400 mt-1"></div>
+        </div>
+      </div>
+      <div id="weather-grid" class="weather-grid mt-auto pt-2">
+        <div class="weather-chip">
+          <span class="weather-chip-label">Temperatur</span>
+          <span class="weather-chip-value"><span id="nat-temp">--</span> °C</span>
+        </div>
+          <div class="weather-chip">
+            <span class="weather-chip-label">Kelembapan</span>
+            <span class="weather-chip-value"><span id="nat-hum">--</span> %</span>
+          </div>
+          <div class="weather-chip">
+            <span class="weather-chip-label">Angin</span>
+            <span class="weather-chip-value"><span id="nat-wind">--</span> m/s</span>
+          </div>
+          <div class="weather-chip">
+            <span class="weather-chip-label">Stasiun</span>
+            <span class="weather-chip-value"><span id="aqi-loc-count">--</span></span>
+          </div>
+      </div>
+    </div>
+    <!-- Kanan: Tren Polutan multi-line chart — diisi runtime -->
+    <div class="lg:col-span-2 card flex flex-col">
+      <h2 class="card-title mb-2">📈 Tren Polutan</h2>
+      <div class="flex gap-3 flex-1" style="min-height:160px;">
+        <div id="pol-avg-summary" class="flex flex-col gap-1 justify-around" style="min-width:120px;max-width:140px;flex-shrink:0"></div>
+        <div class="chart-fixed-h flex-1">
+          <canvas id="chart-pollutant-trend"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── B3 + B4: MAP + SHAP FOREST PLOT ──────────────────────────────── -->
+  <section id="sec-map-forest" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+    <!-- B3: Leaflet Map -->
+    <div class="card overflow-hidden" style="min-height:500px">
+      <!-- Map container — Leaflet akan di-inject ke sini -->
+      <div id="leaflet-map" style="height:420px;border-radius:0.75rem;overflow:hidden;position:relative;z-index:0"></div>
+      <div id="map-legend" class="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400"></div>
+    </div>
+
+    <!-- B4: Forest Plot -->
+    <div class="card flex flex-col" style="min-height:500px">
+      <div class="flex items-center justify-between flex-wrap gap-1 mb-2">
+        <span class="text-xs text-gray-400 dark:text-gray-500">SHAP · RA-STGNN</span>
+      </div>
+      <div class="flex flex-wrap gap-1 mb-3" id="outcome-btns">
+        <button class="outcome-btn active" data-target="resp">Infeksi Napas</button>
+        <button class="outcome-btn" data-target="resp_admissions_under5">Balita &lt;5</button>
+        <button class="outcome-btn" data-target="resp_admissions_over60">Lansia &gt;60</button>
+        <button class="outcome-btn" data-target="asthma_emergency_cases">Asma</button>
+        <button class="outcome-btn" data-target="copd_admissions">PPOK</button>
+        <button class="outcome-btn" data-target="cvd">Kardiovaskular</button>
+        <button class="outcome-btn" data-target="death">Kematian</button>
+      </div>
+      <div id="outcome-mean-badge" class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300"></div>
+      <div id="forest-plot" class="flex-1" style="display:flex;flex-direction:column;min-height:0"></div>
+      <div id="forest-summary" class="mt-3 text-xs text-gray-500 dark:text-gray-400 italic border-t border-gray-100 dark:border-gray-700 pt-2"></div>
+      <div class="mt-1 text-xs text-gray-400 dark:text-gray-600 italic" id="shap-disclaimer"></div>
+    </div>
+  </section>
+
+  <!-- ── MODEL FORECAST PANEL ─────────────────────────────────────────── -->
+  <!-- Note: this static HTML section is replaced at runtime by getMainTemplate() in script.js -->
+  <section id="sec-forecast" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- RA-STGNN 7-hari -->
+    <div class="card flex flex-col">
+      <h2 class="card-title mb-3">Prediksi Kasus Penyakit Pernapasan</h2>
+      <div id="forecast-btns" class="mb-3"></div>
+      <div class="chart-fixed-h flex-1" style="min-height:160px;">
+        <canvas id="chart-rastgnn-forecast"></canvas>
+      </div>
+    </div>
+    <div class="card flex flex-col">
+      <h2 class="card-title mb-3">Peramalan Polutan</h2>
+      <div id="pol-forecast-btns" class="mb-3"></div>
+      <div class="chart-fixed-h flex-1" style="min-height:160px;">
+        <canvas id="chart-miagnn-forecast"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── C5: LOCATION TABLE ─────────────────────────────────────────── -->
+  <section id="sec-table">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <h2 class="section-title">📋 Semua Lokasi</h2>
+      <input id="table-search" type="text" placeholder="Cari lokasi..." class="search-input"/>
+    </div>
+    <div class="card overflow-x-auto p-0">
+      <table class="data-table w-full text-sm">
+        <thead>
+          <tr>
+            <th class="sortable" data-col="kota">Kota / Wilayah</th>
+            <th class="sortable" data-col="aqi">AQI</th>
+            <th class="sortable" data-col="pm25_latest">PM₂.₅</th>
+            <th>Tipe Stasiun</th>
+            <th>Status</th>
+            <th class="sortable" data-col="valid_pct">% Valid</th>
+            <th>Pred. Kematian h+1</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="location-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- ══════════════════════ MODALS ════════════════════════════════════════════ -->
+<!-- Modal: Polutan Detail -->
+<div id="modal-pollutant" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-box max-w-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h3 id="modal-pol-title" class="text-lg font-bold"></h3>
+      <button class="modal-close" onclick="closeModal('modal-pollutant')">✕</button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <div class="text-xs font-semibold text-gray-500 mb-1">Tren Harian (Nasional)</div>
+        <div class="chart-fixed-h" style="height:140px;position:relative;">
+          <canvas id="chart-pol-daily"></canvas>
+        </div>
+      </div>
+      <div>
+        <div class="text-xs font-semibold text-gray-500 mb-1">Peringkat Lokasi</div>
+        <div class="chart-fixed-h" style="height:140px;position:relative;">
+          <canvas id="chart-pol-rank"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4">
+      <div class="text-xs font-semibold text-gray-500 mb-1">Forecast MiAGNN (3 Jam ke Depan)</div>
+      <div class="chart-fixed-h" style="height:80px;position:relative;">
+        <canvas id="chart-pol-forecast"></canvas>
+      </div>
+      <div class="text-xs text-gray-400 mt-1 italic">Dari inferensi langsung model MiAGNN (model.pt). Nilai saat ini + 3 prediksi ke depan.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Lokasi Detail -->
+<div id="modal-location" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-box max-w-3xl">
+    <div class="flex items-center justify-between mb-4">
+      <h3 id="modal-loc-title" class="text-lg font-bold"></h3>
+      <button class="modal-close" onclick="closeModal('modal-location')">✕</button>
+    </div>
+    <div id="modal-loc-content"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ FOOTER ════════════════════════════════════════════ -->
+<footer class="mt-8 border-t border-gray-200 dark:border-gray-700 py-4 text-center text-xs text-gray-400 dark:text-gray-500">
+  Data: <span class="font-mono">Dataset Fix/</span> · <span class="font-mono">RA-STGNN/outputs/</span> · <span class="font-mono">MiAGNN/outputs/</span> |
+  Peta: LapakGIS Batas Provinsi 2024 (SHP → GeoJSON simplified) |
+  AQI: EPA Technical Assistance Document (May 2026)
+</footer>
+
+<script src="script.js?v=42"></script>
+</body>
+</html>
